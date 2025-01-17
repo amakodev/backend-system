@@ -25,4 +25,4 @@ async function processCsv(fileBuffer) {
     });
 }
 
-export default processCsv;
+module.exports = processCsv;
