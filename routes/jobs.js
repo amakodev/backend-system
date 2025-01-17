@@ -4,7 +4,7 @@ const supabase = require('../utils/supabase');
 const router = express.Router();
 
 // Submit a job for processing
-router.post('/processFile', async (req, res) => {
+router.post('/submit', async (req, res) => {
     const { fileUrl } = req.body;
 
     if (!fileUrl) {
