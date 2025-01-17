@@ -2,8 +2,6 @@ const { Worker } = require('bullmq');
 const supabase = require('../utils/supabase');
 const redis = require('../utils/redis');
 const axios = require('axios'); // To download the file
-const fs = require('fs'); // To write the processed file locally
-const path = require('path');
 const processCsv = require('./utils/processCsv'); // Import CSV processing logic
 
 // Worker instance
@@ -20,23 +18,22 @@ const worker = new Worker(
             const fileBuffer = Buffer.from(response.data);
 
             // Process the CSV file
-            const editedCsv = await processCsv(fileBuffer);
+            const editedCsv = await processCsv(fileBuffer); // `editedCsv` is now a string or buffer
 
-            // Save the edited CSV locally
-            const outputFilePath = path.resolve(__dirname, `../output/${job.id}.csv`);
-            fs.writeFileSync(outputFilePath, editedCsv);
-
-            // Optionally upload the edited CSV back to Supabase
+            // Upload the processed CSV directly to Supabase
+            const fileName = `processed/${job.id}.csv`;
             const { data, error: uploadError } = await supabase.storage
                 .from('file-uploads')
-                .upload(`processed/${job.id}.csv`, fs.readFileSync(outputFilePath), {
+                .upload(fileName, editedCsv, {
                     contentType: 'text/csv',
                     upsert: true,
                 });
 
             if (uploadError) throw uploadError;
 
-            // Update job status in Supabase
+            console.log(`Uploaded processed file to Supabase: ${fileName}`);
+
+            // Update job status in Supabase with the file URL
             const { error: updateError } = await supabase
                 .from('jobs')
                 .update({ status: 'completed', resultUrl: data.path })
@@ -44,10 +41,10 @@ const worker = new Worker(
 
             if (updateError) throw updateError;
 
-            console.log(`File processed successfully: ${fileUrl}`);
+            console.log(`Job ${job.id} processed successfully.`);
         } catch (err) {
-            console.error(`Error processing file: ${err.message}`);
-            throw err; // This triggers the `failed` event
+            console.error(`Error processing job ${job.id}: ${err.message}`);
+            throw err; // Triggers the `failed` event
         }
     },
     { connection: redis }
@@ -55,7 +52,7 @@ const worker = new Worker(
 
 // Handle worker events
 worker.on('completed', (job) => {
-    console.log(`Job ${job.id} completed`);
+    console.log(`Job ${job.id} completed.`);
 });
 
 worker.on('failed', (job, err) => {
