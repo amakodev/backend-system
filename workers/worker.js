@@ -4,7 +4,7 @@ const redis = require('../utils/redis');
 const axios = require('axios'); // To download the file
 const fs = require('fs'); // To write the processed file locally
 const path = require('path');
-const processCsv = require('./csvProcessor'); // Import CSV processing logic
+const processCsv = require('./utils/csvProcessor'); // Import CSV processing logic
 
 // Worker instance
 const worker = new Worker(
