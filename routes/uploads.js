@@ -30,13 +30,17 @@ router.post('/', upload.single('file'), async (req, res) => {
         if (error) throw error;
 
         // Generate public URL
-        const { publicURL, error: urlError } = supabase.storage
+        const { data: _data, error: urlError } = supabase.storage
             .from(bucketName)
             .getPublicUrl(fileName);
 
         if (urlError) throw urlError;
 
-        res.json({ fileUrl: publicURL });
+        const { publicUrl } = _data || {};
+
+        console.log({publicUrl})
+
+        res.json({ fileUrl: publicUrl });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Error uploading file' });

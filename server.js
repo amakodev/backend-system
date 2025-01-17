@@ -11,9 +11,9 @@ app.use(bodyParser.json());
 // API Endpoints
 app.get('/', (req, res) => res.send('API is running'));
 
-// Placeholder routes
-app.use('/auth', require('./routes/auth')); // For authentication
-app.use('/billing', require('./routes/billing')); // For Stripe integration
+// Routes
+//app.use('/auth', require('./routes/auth')); // For authentication
+//app.use('/billing', require('./routes/billing')); // For Stripe integration
 app.use('/uploads', require('./routes/uploads')); // For file uploads
 app.use('/jobs', require('./routes/jobs')); // For job management
 
