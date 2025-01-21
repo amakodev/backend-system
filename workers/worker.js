@@ -3,6 +3,9 @@ const supabase = require('../utils/supabase');
 const redis = require('../utils/redis');
 const axios = require('axios'); // To download the file
 const processCsv = require('./utils/processCsv'); // Import CSV processing logic
+require('dotenv').config();
+
+const webhookUrl = 'https://jeff-backend-4yp8o0bjv-adrins-projects-0327ced1.vercel.app/update/crawl_status';
 
 // Worker instance
 const worker = new Worker(
@@ -17,33 +20,31 @@ const worker = new Worker(
             const response = await axios.get(fileUrl, { responseType: 'arraybuffer' });
             const fileBuffer = Buffer.from(response.data);
 
-            // Process the CSV file
-            const editedCsv = await processCsv(fileBuffer); // `editedCsv` is now a string or buffer
+            // Trigger CSV processing (returns confirmation message, actual processing via webhook)
+            const batchSize = 50;
+            const confirmationMessage = await processCsv(fileBuffer, batchSize, webhookUrl);
 
-            // Upload the processed CSV directly to Supabase
-            const fileName = `processed/${job.id}.csv`;
-            const { data, error: uploadError } = await supabase.storage
-                .from('file-uploads')
-                .upload(fileName, editedCsv, {
-                    contentType: 'text/csv',
-                    upsert: true,
-                });
+            console.log(`Processing initiated: ${confirmationMessage}`);
 
-            if (uploadError) throw uploadError;
-
-            console.log(`Uploaded processed file to Supabase: ${fileName}`);
-
-            // Update job status in Supabase with the file URL
+            // Update job status in Supabase to indicate processing has started
             const { error: updateError } = await supabase
                 .from('jobs')
-                .update({ status: 'completed', resultUrl: data.path })
+                .update({ status: 'processing', confirmationMessage })
                 .eq('jobId', job.id);
 
             if (updateError) throw updateError;
 
-            console.log(`Job ${job.id} processed successfully.`);
+            console.log(`Job ${job.id} is now processing.`);
         } catch (err) {
             console.error(`Error processing job ${job.id}: ${err.message}`);
+
+            // Update job status in Supabase to indicate failure
+            await supabase
+                .from('jobs')
+                .update({ status: 'failed', error: err.message })
+                .eq('jobId', job.id)
+                .catch(console.error);
+
             throw err; // Triggers the `failed` event
         }
     },

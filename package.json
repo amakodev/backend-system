@@ -1,8 +1,11 @@
 {
   "name": "backend-system",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "deploy": "vercel --prod",
     "test": "echo \"Error: no test specified\" && exit 1",
     "start-worker": "node workers/worker.js"
   },
@@ -11,10 +14,12 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@mendable/firecrawl-js": "^1.15.7",
     "@supabase/supabase-js": "^2.47.15",
     "axios": "^1.7.9",
     "bcrypt": "^5.1.1",
     "body-parser": "^1.20.3",
+    "bottleneck": "^2.19.5",
     "bullmq": "^5.34.10",
     "cors": "^2.8.5",
     "csv-parse": "^5.6.0",

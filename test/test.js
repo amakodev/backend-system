@@ -44,7 +44,7 @@ const testFileUpload = async () => {
 const testJobSubmission = async (fileUrl) => {
     log('Testing job submission endpoint...', 'info');
     try {
-        const response = await axios.post(`${BASE_URL}/jobs/processFile`, { fileUrl });
+        const response = await axios.post(`${BASE_URL}/jobs/submit`, { fileUrl });
 
         log(`Job submitted successfully: ${response.data.jobId}`, 'success');
         return response.data.jobId;
