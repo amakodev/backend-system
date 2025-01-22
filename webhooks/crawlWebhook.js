@@ -113,7 +113,7 @@ const handleCrawlWebhook = async (req, res) => {
                 }
 
                 const rawCsvUrl = jobFile.fileUrl;
-                console.log(`Fetching CSV from: ${rawCsvUrl}`);
+                console.log(`Fetching CSV from ${jobFile}: ${rawCsvUrl}`);
                 const rawCsvResponse = await axios.get(rawCsvUrl);
 
                 const records = [];
