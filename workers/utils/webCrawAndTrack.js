@@ -67,7 +67,7 @@ const crawlAndTrack = async (jobId, url, webhookUrl) => {
             })
             .eq('id', crawlRecord.id);
 
-        if (updateError.message) {
+        if (updateError?.message) {
             console.error('Error updating crawl record:', updateError);
             throw new Error(`Failed to update crawl record: ${updateError.message}`);
         }
