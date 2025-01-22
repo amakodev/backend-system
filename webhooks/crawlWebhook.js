@@ -104,7 +104,7 @@ const handleCrawlWebhook = async (req, res) => {
                 // Fetch the raw CSV from the file URL
                 const { data: jobFile, error: jobFileError } = await supabase
                     .from('jobs')
-                    .select('"fileUrl"')
+                    .select()
                     .eq('jobId', crawlData.jobId).limit(1)
 
                 if (jobFileError) {
@@ -113,7 +113,7 @@ const handleCrawlWebhook = async (req, res) => {
                 }
 
                 const rawCsvUrl = jobFile.fileUrl;
-                console.log(`Fetching CSV from ${jobFile}: ${rawCsvUrl}`);
+                console.log(`Fetching job ${crawlData.jobId} CSV from ${JSON.stringify(jobFile)}: ${rawCsvUrl}`);
                 const rawCsvResponse = await axios.get(rawCsvUrl);
 
                 const records = [];
