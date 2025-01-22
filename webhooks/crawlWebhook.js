@@ -134,15 +134,18 @@ const handleCrawlWebhook = async (req, res) => {
 
                         // Convert updated records back to CSV
                         const updatedCsv = parse(records);
+                        
+                        console.log({updatedCsv})
 
                         // Re-upload the updated CSV directly to Supabase
                         const filePath = `processed/${jobID}.csv`;
+                        const buffer = Buffer.from(updatedCsv);
                         const { error: uploadError } = await supabase.storage
                             .from('file-uploads')
-                            .upload(filePath, stringToStream(updatedCsv), {
+                            .upload(filePath, buffer, {
                                 contentType: 'text/csv',
                             });
-
+                        
                         if (uploadError) {
                             console.error(`Error uploading updated CSV: ${uploadError.message}`);
                             throw new Error(`Error uploading updated CSV: ${uploadError.message}`);
