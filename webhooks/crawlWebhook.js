@@ -146,6 +146,7 @@ const handleCrawlWebhook = async (req, res) => {
                                 contentType: 'text/csv',
                             });
                         
+                            console.log({filePath, uploadError})
                         if (uploadError) {
                             console.error(`Error uploading updated CSV: ${uploadError.message}`);
                             throw new Error(`Error uploading updated CSV: ${uploadError.message}`);
