@@ -13,7 +13,7 @@ const handleCrawlWebhook = async (req, res) => {
                 console.log(`Crawl started for job ID: ${id}`);
                 await supabase
                     .from('crawl_jobs')
-                    .update({ status: 'started' })
+                    .update({ status: 'crawl started' })
                     .eq('firecrawl_id', id);
                 break;
 

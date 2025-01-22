@@ -53,9 +53,11 @@ const crawlAndTrack = async (jobId, url, webhookUrl) => {
             scrapeOptions: { formats: ['markdown'] }
         });
 
-        if (!crawlResponse || !crawlResponse.success) {
+        if (!crawlResponse.id || !crawlResponse.success) {
             throw new Error(`Firecrawl job failed: ${crawlResponse?.error || 'Unknown error'}`);
         }
+
+        console.log('Craw-ID',crawlResponse.id)
 
         // Update crawl record with Firecrawl ID
         const { error: updateError } = await supabase
