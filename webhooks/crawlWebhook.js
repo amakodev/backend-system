@@ -94,7 +94,8 @@ const handleCrawlWebhook = async (req, res) => {
                     .eq('firecrawl_id', id)
                     .select();
 
-                    console.log({crawlData})
+                    const jobID = crawlData[0].jobId;
+                    console.log({crawlData: crawlData[0], jobID})
 
                 if (completeError) {
                     console.error(`Error updating crawl completion: ${completeError.message}`);
@@ -105,15 +106,15 @@ const handleCrawlWebhook = async (req, res) => {
                 const { data: jobFile, error: jobFileError } = await supabase
                     .from('jobs')
                     .select()
-                    .eq('jobId', crawlData.jobId).limit(1)
+                    .eq('jobId', jobID).single()
 
                 if (jobFileError) {
-                    console.error(`Error fetching job file for job ${crawlData.jobId}: ${jobFileError.message}`);
+                    console.error(`Error fetching job file for job ${jobID}: ${jobFileError.message}`);
                     throw new Error(`Error fetching job file: ${jobFileError.message}`);
                 }
 
                 const rawCsvUrl = jobFile.fileUrl;
-                console.log(`Fetching job ${crawlData.jobId} CSV from ${JSON.stringify(jobFile)}: ${rawCsvUrl}`);
+                console.log(`Fetching job ${jobID} CSV from ${JSON.stringify(jobFile)}: ${rawCsvUrl}`);
                 const rawCsvResponse = await axios.get(rawCsvUrl);
 
                 const records = [];
@@ -135,7 +136,7 @@ const handleCrawlWebhook = async (req, res) => {
                         const updatedCsv = parse(records);
 
                         // Re-upload the updated CSV directly to Supabase
-                        const filePath = `processed/${crawlData.jobId}.csv`;
+                        const filePath = `processed/${jobID}.csv`;
                         const { error: uploadError } = await supabase.storage
                             .from('file-uploads')
                             .upload(filePath, stringToStream(updatedCsv), {
@@ -161,7 +162,7 @@ const handleCrawlWebhook = async (req, res) => {
                                 const { error: publicUrlSaveError } = await supabase
                                     .from('jobs')
                                     .update({ resulturl: publicUrl })
-                                    .eq('jobId', crawlData.jobId)
+                                    .eq('jobId', jobID)
 
                                 if (publicUrlSaveError) {
                                     console.error(`Error saving public URL: ${publicUrlSaveError.message}`);
