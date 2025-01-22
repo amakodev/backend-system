@@ -5,7 +5,7 @@ const FormData = require('form-data'); // Import form-data
 require('dotenv').config();
 
 // Base URL of your server
-const BASE_URL = process.env.SERVER_URL;
+const BASE_URL = "https://jeff-backend-qeimymb7a-adrins-projects-0327ced1.vercel.app";
 
 // Paths and test data
 const TEST_FILE_PATH = path.resolve(__dirname, 'sample.csv'); // Replace with your test file path

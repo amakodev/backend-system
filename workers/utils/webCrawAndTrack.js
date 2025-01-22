@@ -34,7 +34,7 @@ const crawlAndTrack = async (jobId, url, webhookUrl) => {
             .select()
             .single();
 
-        if (insertError.message) {
+        if (insertError?.message) {
             console.error('Error inserting crawl record:', insertError);
             throw new Error(`Failed to create crawl record: ${insertError.message}`);
         }

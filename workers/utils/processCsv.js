@@ -19,48 +19,53 @@ async function processCsv(jobId, fileBuffer, batchSize, webhookUrl) {
     const processedRecords = [];
     const parser = parse(fileBuffer, { columns: true });
 
-    for await (const record of parser) {
-        processedRecords.push(
-            limiter.schedule(async () => {
-                try {
-                    // Start Firecrawl job
-                    const crawlResult = await crawlAndTrack(jobId, record.Website || record.Person_Linkedin_Url || '', webhookUrl);
-
-                    if (!crawlResult.success) {
-                        throw new Error(`Crawl failed: ${crawlResult.error}`);
+    try {
+        for await (const record of parser) {
+            processedRecords.push(
+                limiter.schedule(async () => {
+                    try {
+                        // Start Firecrawl job
+                        const crawlResult = await crawlAndTrack(jobId, record.Website || record.Person_Linkedin_Url || '', webhookUrl);
+    
+                        if (!crawlResult.success) {
+                            throw new Error(`Crawl failed: ${crawlResult.error}`);
+                        }
+    
+                        console.log(`Firecrawl job started: ${crawlResult.crawlJobId}`);
+    
+                        // Store the crawl job ID in the record
+                        record.crawlJobId = crawlResult.crawlJobId;
+    
+                        // Insert the initial record into Supabase for later updates
+                        // await supabase
+                        //     .from('crawl_jobs')
+                        //     .insert({
+                        //         firecrawl_id: crawlResult.crawlJobId,
+                        //         record,
+                        //         status: 'started',
+                        //     });
+    
+                    } catch (error) {
+                        console.error('Error starting crawl job:', error.message);
+                        record.error = error.message;
                     }
-
-                    console.log(`Firecrawl job started: ${crawlResult.crawlJobId}`);
-
-                    // Store the crawl job ID in the record
-                    record.crawlJobId = crawlResult.crawlJobId;
-
-                    // Insert the initial record into Supabase for later updates
-                    // await supabase
-                    //     .from('crawl_jobs')
-                    //     .insert({
-                    //         firecrawl_id: crawlResult.crawlJobId,
-                    //         record,
-                    //         status: 'started',
-                    //     });
-
-                } catch (error) {
-                    console.error('Error starting crawl job:', error.message);
-                    record.error = error.message;
-                }
-            })
-        );
-
-        if (processedRecords.length === batchSize) {
-            await Promise.all(processedRecords);
-            processedRecords.length = 0;
+                })
+            );
+    
+            if (processedRecords.length === batchSize) {
+                await Promise.all(processedRecords);
+                processedRecords.length = 0;
+            }
         }
+    
+        // Process remaining records
+        await Promise.all(processedRecords);
+    
+        return 'CSV processing started.';
+    } catch (error) {
+        console.error(error);
+        throw error;
     }
-
-    // Process remaining records
-    await Promise.all(processedRecords);
-
-    return 'CSV processing started.';
 }
 
 module.exports = processCsv;
