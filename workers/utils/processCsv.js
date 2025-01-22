@@ -14,7 +14,7 @@ const crawlAndTrack = require('./webCrawAndTrack');
  * @param {string} webhookUrl - Webhook URL for Firecrawl job updates.
  * @returns {Promise<string>} - verdict string.
  */
-async function processCsv(fileBuffer, batchSize, webhookUrl) {
+async function processCsv(jobId, fileBuffer, batchSize, webhookUrl) {
     const limiter = new Bottleneck({ minTime: 1000 }); // Limit API calls to 1/second
     const processedRecords = [];
     const parser = parse(fileBuffer, { columns: true });
@@ -24,7 +24,7 @@ async function processCsv(fileBuffer, batchSize, webhookUrl) {
             limiter.schedule(async () => {
                 try {
                     // Start Firecrawl job
-                    const crawlResult = await crawlAndTrack(record.Website || record.Person_Linkedin_Url || '', webhookUrl);
+                    const crawlResult = await crawlAndTrack(jobId, record.Website || record.Person_Linkedin_Url || '', webhookUrl);
 
                     if (!crawlResult.success) {
                         throw new Error(`Crawl failed: ${crawlResult.error}`);
@@ -33,7 +33,7 @@ async function processCsv(fileBuffer, batchSize, webhookUrl) {
                     console.log(`Firecrawl job started: ${crawlResult.crawlJobId}`);
 
                     // Store the crawl job ID in the record
-                    //record.crawlJobId = crawlResult.crawlJobId;
+                    record.crawlJobId = crawlResult.crawlJobId;
 
                     // Insert the initial record into Supabase for later updates
                     // await supabase
@@ -60,7 +60,7 @@ async function processCsv(fileBuffer, batchSize, webhookUrl) {
     // Process remaining records
     await Promise.all(processedRecords);
 
-    return 'CSV processing started, check Supabase for updates.';
+    return 'CSV processing started.';
 }
 
 module.exports = processCsv;

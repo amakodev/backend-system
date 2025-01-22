@@ -22,14 +22,14 @@ const worker = new Worker(
 
             // Trigger CSV processing (returns confirmation message, actual processing via webhook)
             const batchSize = 50;
-            const confirmationMessage = await processCsv(fileBuffer, batchSize, webhookUrl);
+            const confirmationMessage = await processCsv(job.id, fileBuffer, batchSize, webhookUrl);
 
             console.log(`Processing initiated: ${confirmationMessage}`);
 
             // Update job status in Supabase to indicate processing has started
             const { error: updateError } = await supabase
                 .from('jobs')
-                .update({ status: 'processing', confirmationMessage })
+                .update({ status: confirmationMessage })
                 .eq('jobId', job.id);
 
             if (updateError) throw updateError;

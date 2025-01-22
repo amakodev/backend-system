@@ -4,7 +4,7 @@ const path = require('path');
 const FormData = require('form-data'); // Import form-data
 
 // Base URL of your server
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = 'https://jeff-backend-4yp8o0bjv-adrins-projects-0327ced1.vercel.app';
 
 // Paths and test data
 const TEST_FILE_PATH = path.resolve(__dirname, 'sample.csv'); // Replace with your test file path

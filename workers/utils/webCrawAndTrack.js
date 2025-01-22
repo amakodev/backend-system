@@ -10,7 +10,7 @@ const firecrawl = new FirecrawlApp.default({ apiKey: process.env.FIRECRAWL_API_K
  * @param {string} webhookUrl - Webhook URL for crawl notifications
  * @returns {Promise<Object>} Result object with success status and relevant data
  */
-const crawlAndTrack = async (url, webhookUrl) => {
+const crawlAndTrack = async (jobId, url, webhookUrl) => {
     let crawlRecord = null;
     
     console.log(`Attempting to Crawl ${url}`);
@@ -21,52 +21,37 @@ const crawlAndTrack = async (url, webhookUrl) => {
             throw new Error('Invalid URL provided');
         }
 
-        // First, try to insert without .select() to verify insert works
-        const insertResult = await supabase
+        // Insert initial crawl record in Supabase
+        const { data, error: insertError } = await supabase
             .from('crawl_jobs')
             .insert([{ 
+                jobId,
                 url, 
                 status: 'started', 
                 progress: 0,
                 created_at: new Date().toISOString()
-            }]);
-
-        console.log('Initial insert result:', insertResult);
-
-        if (insertResult.error) {
-            throw new Error(`Insert failed: ${insertResult.error.message || 'Unknown error'}`);
-        }
-
-        // Now fetch the record we just inserted
-        const { data: fetchedRecord, error: fetchError } = await supabase
-            .from('crawl_jobs')
-            .select('*')
-            .eq('url', url)
-            .eq('status', 'started')
-            .order('created_at', { ascending: false })
-            .limit(1)
+            }])
+            .select()
             .single();
 
-        if (fetchError) {
-            throw new Error(`Failed to fetch inserted record: ${fetchError.message}`);
+        if (insertError.message) {
+            console.error('Error inserting crawl record:', insertError);
+            throw new Error(`Failed to create crawl record: ${insertError.message}`);
         }
 
-        if (!fetchedRecord) {
-            throw new Error('Failed to retrieve the inserted record');
+        if (!data) {
+            throw new Error('No crawl record was created');
         }
 
-        crawlRecord = fetchedRecord;
-        console.log(`Successfully retrieved crawl record with ID: ${crawlRecord.id}`);
+        crawlRecord = data;
+        console.log(`Crawl record created with ID: ${crawlRecord.id}`);
 
         // Start the Firecrawl job
-        console.log('Starting Firecrawl job...');
         const crawlResponse = await firecrawl.crawlUrl(url, {
             webhook: webhookUrl,
             limit: 2,
             scrapeOptions: { formats: ['markdown'] }
         });
-
-        console.log('Firecrawl response:', crawlResponse);
 
         if (!crawlResponse || !crawlResponse.success) {
             throw new Error(`Firecrawl job failed: ${crawlResponse?.error || 'Unknown error'}`);
@@ -82,7 +67,8 @@ const crawlAndTrack = async (url, webhookUrl) => {
             })
             .eq('id', crawlRecord.id);
 
-        if (updateError) {
+        if (updateError.message) {
+            console.error('Error updating crawl record:', updateError);
             throw new Error(`Failed to update crawl record: ${updateError.message}`);
         }
 
@@ -96,11 +82,7 @@ const crawlAndTrack = async (url, webhookUrl) => {
         };
 
     } catch (error) {
-        console.error('Operation failed:', {
-            error: error.message,
-            stack: error.stack,
-            context: crawlRecord ? `Had crawl record with ID ${crawlRecord.id}` : 'No crawl record created'
-        });
+        console.error('Crawl operation failed:', error);
 
         // If we have a crawl record, update it with the error status
         if (crawlRecord?.id) {
