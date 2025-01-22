@@ -140,42 +140,42 @@ const handleCrawlWebhook = async (req, res) => {
                         // Re-upload the updated CSV directly to Supabase
                         const filePath = `processed/${jobID}.csv`;
                         const buffer = Buffer.from(updatedCsv);
-                        const { error: uploadError } = await supabase.storage
+                        await supabase.storage
                             .from('file-uploads')
                             .upload(filePath, buffer, {
                                 contentType: 'text/csv',
                             });
                         
-                            console.log({filePath, uploadError})
-                        if (uploadError) {
-                            console.error(`Error uploading updated CSV: ${uploadError.message}`);
-                            throw new Error(`Error uploading updated CSV: ${uploadError.message}`);
-                        } else {
-                            console.log('Updated CSV uploaded successfully:', filePath);
-                            // Generate a public URL for the uploaded CSV
-                            const { data: publicUrlData, error: publicUrlError } = supabase.storage
-                                .from('file-uploads')
-                                .getPublicUrl(filePath);
+                            console.log({filePath})
+                        // if (uploadError) {
+                        //     console.error(`Error uploading updated CSV: ${uploadError.message}`);
+                        //     throw new Error(`Error uploading updated CSV: ${uploadError.message}`);
+                        // } else {
+                        //     console.log('Updated CSV uploaded successfully:', filePath);
+                        //     // Generate a public URL for the uploaded CSV
+                        //     const { data: publicUrlData, error: publicUrlError } = supabase.storage
+                        //         .from('file-uploads')
+                        //         .getPublicUrl(filePath);
 
-                            if (publicUrlError) {
-                                console.error(`Error generating public URL: ${publicUrlError.message}`);
-                                throw new Error(`Error generating public URL: ${publicUrlError.message}`);
-                            } else {
-                                const publicUrl = publicUrlData.publicUrl;
-                                console.log('Public URL for the updated CSV:', publicUrl);
-                                const { error: publicUrlSaveError } = await supabase
-                                    .from('jobs')
-                                    .update({ resulturl: publicUrl })
-                                    .eq('jobId', jobID)
+                        //     if (publicUrlError) {
+                        //         console.error(`Error generating public URL: ${publicUrlError.message}`);
+                        //         throw new Error(`Error generating public URL: ${publicUrlError.message}`);
+                        //     } else {
+                        //         const publicUrl = publicUrlData.publicUrl;
+                        //         console.log('Public URL for the updated CSV:', publicUrl);
+                        //         const { error: publicUrlSaveError } = await supabase
+                        //             .from('jobs')
+                        //             .update({ resulturl: publicUrl })
+                        //             .eq('jobId', jobID)
 
-                                if (publicUrlSaveError) {
-                                    console.error(`Error saving public URL: ${publicUrlSaveError.message}`);
-                                    throw new Error(`Error saving public URL: ${publicUrlSaveError.message}`);
-                                }
-                            }
+                        //         if (publicUrlSaveError) {
+                        //             console.error(`Error saving public URL: ${publicUrlSaveError.message}`);
+                        //             throw new Error(`Error saving public URL: ${publicUrlSaveError.message}`);
+                        //         }
+                        //     }
 
 
-                        }
+                        // }
                     })
                     .on('error', (error) => {
                         console.error('Error parsing CSV:', error.message);
