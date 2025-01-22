@@ -5,25 +5,28 @@ const axios = require('axios');
  * Handles Firecrawl webhook updates and uses OpenAI to format data when the crawl is completed.
  */
 const handleCrawlWebhook = async (req, res) => {
-    const { type, data, error, id, progress } = req.body;
+    const { type, data, error, id, progress, metadata } = req.body;
 
     try {
         switch (type) {
             case 'crawl.started':
-                console.log(`Crawl started for job ID: ${id}`);
+                console.log(`Crawl started for job ID: ${id} | ${metadata}`);
+
                 await supabase
                     .from('crawl_jobs')
-                    .update({ 
-                        status: 'crawl started',
+                    .update({
+                        status: 'crawling',
+                        firecrawl_id: id,
+                        updated_at: new Date().toISOString(),
                         data: [], // Initialize empty array for data
                         formatted_data: '' // Initialize empty string for formatted data
                     })
-                    .eq('firecrawl_id', id);
+                    .eq('id', metadata.recordId);
                 break;
 
             case 'crawl.page':
                 console.log(`Page crawled: ${data[0]?.metadata?.title || 'Unknown'}`);
-                
+
                 // First, get the existing data
                 const { data: existingRecord, error: fetchError } = await supabase
                     .from('crawl_jobs')
@@ -41,7 +44,7 @@ const handleCrawlWebhook = async (req, res) => {
                 // Combine existing and new data
                 const updatedData = {
                     data: existingRecord.data ? [...existingRecord.data, ...data] : data,
-                    formatted_data: existingRecord.formatted_data 
+                    formatted_data: existingRecord.formatted_data
                         ? existingRecord.formatted_data + '\n\n' + newFormattedData
                         : newFormattedData,
                     progress,
@@ -75,8 +78,8 @@ const handleCrawlWebhook = async (req, res) => {
                 console.error(`Crawl failed for job ID: ${id}, error: ${error}`);
                 await supabase
                     .from('crawl_jobs')
-                    .update({ 
-                        status: 'failed', 
+                    .update({
+                        status: 'failed',
                         error,
                         last_webhook_type: type,
                         last_webhook_timestamp: new Date().toISOString()
@@ -110,7 +113,7 @@ const formatCrawlDataWithOpenAI = async (crawledData) => {
                     {
                         role: 'system',
                         content:
-                            'You are a data formatter. Given raw crawled data, return a well-structured and human-readable summary.',
+                            'You are a data formatter. Given raw crawled data, return a well-structured and human-readable  1 sentence summary.',
                     },
                     { role: 'user', content: JSON.stringify(crawledData) },
                 ],
