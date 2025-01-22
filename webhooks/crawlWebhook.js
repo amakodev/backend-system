@@ -122,7 +122,7 @@ const handleCrawlWebhook = async (req, res) => {
                     .pipe(csvParser())
                     .on('data', (row) => records.push(row))
                     .on('end', async () => {
-                        console.log('CSV parsed successfully:', records);
+                        console.log('CSV parsed successfully:');
 
                         // Update records with formatted_data
                         records.forEach((record) => {
@@ -135,7 +135,7 @@ const handleCrawlWebhook = async (req, res) => {
                         // Convert updated records back to CSV
                         const updatedCsv = parse(records);
                         
-                        console.log({updatedCsv})
+                        //console.log({updatedCsv})
 
                         // Re-upload the updated CSV directly to Supabase
                         const filePath = `processed/${jobID}.csv`;
@@ -153,7 +153,7 @@ const handleCrawlWebhook = async (req, res) => {
                         } else {
                             console.log('Updated CSV uploaded successfully:', filePath);
                             // Generate a public URL for the uploaded CSV
-                            const { data: publicUrlData, error: publicUrlError } = await supabase.storage
+                            const { data: publicUrlData, error: publicUrlError } = supabase.storage
                                 .from('file-uploads')
                                 .getPublicUrl(filePath);
 
