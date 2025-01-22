@@ -10,7 +10,7 @@ const handleCrawlWebhook = async (req, res) => {
     try {
         switch (type) {
             case 'crawl.started':
-                console.log(`Crawl started for job ID: ${id} | ${metadata}`);
+                console.log(`Crawl started for job ID: ${id} | ${JSON.stringify(metadata)}`);
 
                 await supabase
                     .from('crawl_jobs')

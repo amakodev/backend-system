@@ -5,7 +5,7 @@ const axios = require('axios'); // To download the file
 const processCsv = require('./utils/processCsv'); // Import CSV processing logic
 require('dotenv').config();
 
-const webhookUrl = `${"https://jeff-backend-iat8stmjp-adrins-projects-0327ced1.vercel.app"}/update/crawl_status`;
+const webhookUrl = `${"https://jeff-backend-3im7834go-adrins-projects-0327ced1.vercel.app"}/update/crawl_status`;
 
 // Worker instance
 const worker = new Worker(
