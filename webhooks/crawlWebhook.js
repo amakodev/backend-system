@@ -126,7 +126,7 @@ const handleCrawlWebhook = async (req, res) => {
 
                         // Update records with formatted_data
                         records.forEach((record) => {
-                            const crawledRecord = crawlData.find((c) => c.url === record.website);
+                            const crawledRecord = crawlData.find((c) => c.Website === record.website);
                             if (crawledRecord) {
                                 record.formatted_data = crawledRecord.formatted_data || 'No data';
                             }
@@ -215,14 +215,17 @@ const formatCrawlDataWithOpenAI = async (crawledData) => {
                 messages: [
                     {
                         role: 'system',
-                        content:
-                            'You are a data formatter. Given raw crawled data, return a well-structured and human-readable  1 sentence summary.',
+                        content: 'You are a data formatter. Given raw crawled data, return a well-structured and human-readable 1 sentence summary.',
                     },
                     { role: 'user', content: JSON.stringify(crawledData) },
                 ],
             },
             {
                 headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+                // Explicitly set duplex mode if required
+                fetchOptions: {
+                    duplex: 'half',
+                },
             }
         );
 
