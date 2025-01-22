@@ -48,30 +48,37 @@ const handleCrawlWebhook = async (req, res) => {
                         ? existingRecord.formatted_data + '\n\n' + newFormattedData
                         : newFormattedData,
                     progress,
-                    last_webhook_type: type,
-                    last_webhook_timestamp: new Date().toISOString()
                 };
 
                 // Update with combined data
-                await supabase
+                const { error: updateError } = await supabase
                     .from('crawl_jobs')
                     .update(updatedData)
                     .eq('firecrawl_id', id);
+
+                if (updateError) {
+                    console.error(`Error fetching existing record: ${fetchError.message}`);
+                    throw new Error(`Error fetching existing record: ${fetchError.message}`);
+                }
 
                 console.log(`Updated data for job ${id}, total pages: ${updatedData.data.length}`);
                 break;
 
             case 'crawl.completed':
                 console.log(`Crawl completed for job ID: ${id}`);
-                await supabase
+
+                const { error: completeError } = await supabase
                     .from('crawl_jobs')
                     .update({
                         status: 'completed',
                         progress: 100,
-                        last_webhook_type: type,
-                        last_webhook_timestamp: new Date().toISOString()
                     })
                     .eq('firecrawl_id', id);
+
+                if (completeError) {
+                    console.error(`Error fetching existing record: ${fetchError.message}`);
+                    throw new Error(`Error fetching existing record: ${fetchError.message}`);
+                }
                 break;
 
             case 'crawl.failed':
