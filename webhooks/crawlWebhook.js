@@ -94,6 +94,8 @@ const handleCrawlWebhook = async (req, res) => {
                     .eq('firecrawl_id', id)
                     .select();
 
+                    console.log({crawlData})
+
                 if (completeError) {
                     console.error(`Error updating crawl completion: ${completeError.message}`);
                     throw new Error(`Error updating crawl completion: ${completeError.message}`);
