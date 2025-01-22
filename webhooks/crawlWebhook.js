@@ -79,79 +79,102 @@ const handleCrawlWebhook = async (req, res) => {
 
                 console.log(`Updated data for job ${id}, total pages: ${updatedData.data.length}`);
                 break;
-                
-                case 'crawl.completed':
-                    console.log(`Crawl completed for job ID: ${id}`);
-                
-                    // Update the database record to mark completion
-                    const { data: crawlData, error: completeError } = await supabase
-                        .from('crawl_jobs')
-                        .update({
-                            status: 'completed',
-                            progress: 100,
-                            completed_at: new Date().toISOString(),
-                        })
-                        .eq('firecrawl_id', id)
-                        .select();
-                
-                    if (completeError) {
-                        console.error(`Error updating crawl completion: ${completeError.message}`);
-                        throw new Error(`Error updating crawl completion: ${completeError.message}`);
-                    }
-                
-                    // Fetch the raw CSV from the file URL
-                    const { data: jobFile, error: jobFileError } = await supabase
-                        .from('jobs')
-                        .select('fileUrl')
-                        .eq('jobId', metadata.jobId)
-                        .single();
-                
-                    if (jobFileError) {
-                        console.error(`Error fetching job file: ${jobFileError.message}`);
-                        throw new Error(`Error fetching job file: ${jobFileError.message}`);
-                    }
-                
-                    const rawCsvUrl = jobFile.fileUrl;
-                    console.log(`Fetching CSV from: ${rawCsvUrl}`);
-                    const rawCsvResponse = await axios.get(rawCsvUrl);
-                
-                    const records = [];
-                    stringToStream(rawCsvResponse.data)
-                        .pipe(csvParser())
-                        .on('data', (row) => records.push(row))
-                        .on('end', async () => {
-                            console.log('CSV parsed successfully:', records);
-                
-                            // Update records with formatted_data
-                            records.forEach((record) => {
-                                const crawledRecord = crawlData.find((c) => c.url === record.website);
-                                if (crawledRecord) {
-                                    record.formatted_data = crawledRecord.formatted_data || 'No data';
-                                }
-                            });
-                
-                            // Convert updated records back to CSV
-                            const updatedCsv = parse(records);
-                
-                            // Re-upload the updated CSV directly to Supabase
-                            const filePath = `processed/${metadata.jobId}.csv`;
-                            const { error: uploadError } = await supabase.storage
-                                .from('file-uploads')
-                                .upload(filePath, stringToStream(updatedCsv), {
-                                    contentType: 'text/csv',
-                                });
-                
-                            if (uploadError) {
-                                console.error(`Error uploading updated CSV: ${uploadError.message}`);
-                                throw new Error(`Error uploading updated CSV: ${uploadError.message}`);
-                            } else {
-                                console.log('Updated CSV uploaded successfully:', filePath);
+
+            case 'crawl.completed':
+                console.log(`Crawl completed for job ID: ${id}`);
+
+                // Update the database record to mark completion
+                const { data: crawlData, error: completeError } = await supabase
+                    .from('crawl_jobs')
+                    .update({
+                        status: 'completed',
+                        progress: 100,
+                        completed_at: new Date().toISOString(),
+                    })
+                    .eq('firecrawl_id', id)
+                    .select();
+
+                if (completeError) {
+                    console.error(`Error updating crawl completion: ${completeError.message}`);
+                    throw new Error(`Error updating crawl completion: ${completeError.message}`);
+                }
+
+                // Fetch the raw CSV from the file URL
+                const { data: jobFile, error: jobFileError } = await supabase
+                    .from('jobs')
+                    .select('fileUrl')
+                    .eq('jobId', crawlData.jobId)
+                    .single();
+
+                if (jobFileError) {
+                    console.error(`Error fetching job file: ${jobFileError.message}`);
+                    throw new Error(`Error fetching job file: ${jobFileError.message}`);
+                }
+
+                const rawCsvUrl = jobFile.fileUrl;
+                console.log(`Fetching CSV from: ${rawCsvUrl}`);
+                const rawCsvResponse = await axios.get(rawCsvUrl);
+
+                const records = [];
+                stringToStream(rawCsvResponse.data)
+                    .pipe(csvParser())
+                    .on('data', (row) => records.push(row))
+                    .on('end', async () => {
+                        console.log('CSV parsed successfully:', records);
+
+                        // Update records with formatted_data
+                        records.forEach((record) => {
+                            const crawledRecord = crawlData.find((c) => c.url === record.website);
+                            if (crawledRecord) {
+                                record.formatted_data = crawledRecord.formatted_data || 'No data';
                             }
-                        })
-                        .on('error', (error) => {
-                            console.error('Error parsing CSV:', error.message);
                         });
-                    break;              
+
+                        // Convert updated records back to CSV
+                        const updatedCsv = parse(records);
+
+                        // Re-upload the updated CSV directly to Supabase
+                        const filePath = `processed/${crawlData.jobId}.csv`;
+                        const { error: uploadError } = await supabase.storage
+                            .from('file-uploads')
+                            .upload(filePath, stringToStream(updatedCsv), {
+                                contentType: 'text/csv',
+                            });
+
+                        if (uploadError) {
+                            console.error(`Error uploading updated CSV: ${uploadError.message}`);
+                            throw new Error(`Error uploading updated CSV: ${uploadError.message}`);
+                        } else {
+                            console.log('Updated CSV uploaded successfully:', filePath);
+                            // Generate a public URL for the uploaded CSV
+                            const { data: publicUrlData, error: publicUrlError } = await supabase.storage
+                                .from('file-uploads')
+                                .getPublicUrl(filePath);
+
+                            if (publicUrlError) {
+                                console.error(`Error generating public URL: ${publicUrlError.message}`);
+                                throw new Error(`Error generating public URL: ${publicUrlError.message}`);
+                            } else {
+                                const publicUrl = publicUrlData.publicUrl;
+                                console.log('Public URL for the updated CSV:', publicUrl);
+                                const { error: publicUrlSaveError } = await supabase
+                                    .from('jobs')
+                                    .update({ resulturl: publicUrl })
+                                    .eq('jobId', crawlData.jobId)
+
+                                if (publicUrlSaveError) {
+                                    console.error(`Error saving public URL: ${publicUrlSaveError.message}`);
+                                    throw new Error(`Error saving public URL: ${publicUrlSaveError.message}`);
+                                }
+                            }
+
+
+                        }
+                    })
+                    .on('error', (error) => {
+                        console.error('Error parsing CSV:', error.message);
+                    });
+                break;
 
             case 'crawl.failed':
                 console.error(`Crawl failed for job ID: ${id}, error: ${error}`);
