@@ -104,8 +104,8 @@ const handleCrawlWebhook = async (req, res) => {
                 // Fetch the raw CSV from the file URL
                 const { data: jobFile, error: jobFileError } = await supabase
                     .from('jobs')
-                    .select('"fileUrl"')
-                    .eq('"jobId"', crawlData.jobId).single()
+                    .select('fileurl')
+                    .eq('jobid', crawlData.jobId).limit(1)
 
                 if (jobFileError) {
                     console.error(`Error fetching job file for job ${crawlData.jobId}: ${jobFileError.message}`);
