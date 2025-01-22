@@ -23,10 +23,12 @@
     "bullmq": "^5.34.10",
     "cors": "^2.8.5",
     "csv-parse": "^5.6.0",
+    "csv-parser": "^3.1.0",
     "csv-stringify": "^6.5.2",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "ioredis": "^5.4.2",
+    "json2csv": "^6.0.0-alpha.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "stripe": "^17.5.0"

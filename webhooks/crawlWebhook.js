@@ -1,5 +1,20 @@
 const supabase = require('../utils/supabase');
 const axios = require('axios');
+const csvParser = require('csv-parser');
+const { parse } = require('json2csv');
+const stream = require('stream');
+
+/**
+ * Convert raw CSV string to a stream.
+ * @param {string} data - The raw CSV data as a string.
+ * @returns {ReadableStream} A readable stream of the data.
+ */
+const stringToStream = (data) => {
+    const readable = new stream.Readable();
+    readable.push(data);
+    readable.push(null); // Signal end of stream
+    return readable;
+};
 
 /**
  * Handles Firecrawl webhook updates and uses OpenAI to format data when the crawl is completed.
@@ -48,6 +63,7 @@ const handleCrawlWebhook = async (req, res) => {
                         ? existingRecord.formatted_data + '\n\n' + newFormattedData
                         : newFormattedData,
                     progress,
+                    updated_at: new Date().toISOString(),
                 };
 
                 // Update with combined data
@@ -63,23 +79,79 @@ const handleCrawlWebhook = async (req, res) => {
 
                 console.log(`Updated data for job ${id}, total pages: ${updatedData.data.length}`);
                 break;
-
-            case 'crawl.completed':
-                console.log(`Crawl completed for job ID: ${id}`);
-
-                const { error: completeError } = await supabase
-                    .from('crawl_jobs')
-                    .update({
-                        status: 'completed',
-                        progress: 100,
-                    })
-                    .eq('firecrawl_id', id);
-
-                if (completeError) {
-                    console.error(`Error fetching existing record: ${fetchError.message}`);
-                    throw new Error(`Error fetching existing record: ${fetchError.message}`);
-                }
-                break;
+                
+                case 'crawl.completed':
+                    console.log(`Crawl completed for job ID: ${id}`);
+                
+                    // Update the database record to mark completion
+                    const { data: crawlData, error: completeError } = await supabase
+                        .from('crawl_jobs')
+                        .update({
+                            status: 'completed',
+                            progress: 100,
+                            completed_at: new Date().toISOString(),
+                        })
+                        .eq('firecrawl_id', id)
+                        .select();
+                
+                    if (completeError) {
+                        console.error(`Error updating crawl completion: ${completeError.message}`);
+                        throw new Error(`Error updating crawl completion: ${completeError.message}`);
+                    }
+                
+                    // Fetch the raw CSV from the file URL
+                    const { data: jobFile, error: jobFileError } = await supabase
+                        .from('jobs')
+                        .select('fileUrl')
+                        .eq('jobId', metadata.jobId)
+                        .single();
+                
+                    if (jobFileError) {
+                        console.error(`Error fetching job file: ${jobFileError.message}`);
+                        throw new Error(`Error fetching job file: ${jobFileError.message}`);
+                    }
+                
+                    const rawCsvUrl = jobFile.fileUrl;
+                    console.log(`Fetching CSV from: ${rawCsvUrl}`);
+                    const rawCsvResponse = await axios.get(rawCsvUrl);
+                
+                    const records = [];
+                    stringToStream(rawCsvResponse.data)
+                        .pipe(csvParser())
+                        .on('data', (row) => records.push(row))
+                        .on('end', async () => {
+                            console.log('CSV parsed successfully:', records);
+                
+                            // Update records with formatted_data
+                            records.forEach((record) => {
+                                const crawledRecord = crawlData.find((c) => c.url === record.website);
+                                if (crawledRecord) {
+                                    record.formatted_data = crawledRecord.formatted_data || 'No data';
+                                }
+                            });
+                
+                            // Convert updated records back to CSV
+                            const updatedCsv = parse(records);
+                
+                            // Re-upload the updated CSV directly to Supabase
+                            const filePath = `processed/${metadata.jobId}.csv`;
+                            const { error: uploadError } = await supabase.storage
+                                .from('file-uploads')
+                                .upload(filePath, stringToStream(updatedCsv), {
+                                    contentType: 'text/csv',
+                                });
+                
+                            if (uploadError) {
+                                console.error(`Error uploading updated CSV: ${uploadError.message}`);
+                                throw new Error(`Error uploading updated CSV: ${uploadError.message}`);
+                            } else {
+                                console.log('Updated CSV uploaded successfully:', filePath);
+                            }
+                        })
+                        .on('error', (error) => {
+                            console.error('Error parsing CSV:', error.message);
+                        });
+                    break;              
 
             case 'crawl.failed':
                 console.error(`Crawl failed for job ID: ${id}, error: ${error}`);
@@ -87,9 +159,8 @@ const handleCrawlWebhook = async (req, res) => {
                     .from('crawl_jobs')
                     .update({
                         status: 'failed',
-                        error,
-                        last_webhook_type: type,
-                        last_webhook_timestamp: new Date().toISOString()
+                        updated_at: new Date().toISOString(),
+                        error_message: error?.message,
                     })
                     .eq('firecrawl_id', id);
                 break;

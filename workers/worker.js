@@ -5,7 +5,7 @@ const axios = require('axios'); // To download the file
 const processCsv = require('./utils/processCsv'); // Import CSV processing logic
 require('dotenv').config();
 
-const webhookUrl = `${"https://jeff-backend-4rt6sf6hw-adrins-projects-0327ced1.vercel.app"}/update/crawl_status`;
+const webhookUrl = `${"https://jeff-backend-b1ds4wfqs-adrins-projects-0327ced1.vercel.app"}/update/crawl_status`;
 
 // Worker instance
 const worker = new Worker(
@@ -41,7 +41,7 @@ const worker = new Worker(
             // Update job status in Supabase to indicate failure
             await supabase
                 .from('jobs')
-                .update({ status: 'failed', error: err.message })
+                .update({ status: `failed: ${err.message}s` })
                 .eq('jobId', job.id)
                 .catch(console.error);
 
