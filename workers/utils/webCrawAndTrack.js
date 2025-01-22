@@ -49,11 +49,13 @@ const crawlAndTrack = async (jobId, url, webhookUrl) => {
         // Start the Firecrawl job
         const crawlResponse = await firecrawl.crawlUrl(url, {
             webhook: webhookUrl,
-            limit: 2,
+            limit: 1,
             scrapeOptions: { formats: ['markdown'] }
         });
+        console.log({crawlResponse});
 
-        if (!crawlResponse.id || !crawlResponse.success) {
+        if (!crawlResponse?.id || !crawlResponse.success) {
+            console.error(`Firecrawl job failed: ${crawlResponse?.error || 'Unknown error'}`)
             throw new Error(`Firecrawl job failed: ${crawlResponse?.error || 'Unknown error'}`);
         }
 
