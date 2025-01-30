@@ -8,7 +8,7 @@ const app = express();
 
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '50mb' })); 
 
 // API Endpoints
 app.get('/', (req, res) => res.send('API is running'));
@@ -21,6 +21,8 @@ app.post('/update/crawl_status', handleCrawlWebhook);
 //app.use('/billing', require('./routes/billing')); // For Stripe integration
 app.use('/uploads', require('./routes/uploads')); // For file uploads
 app.use('/jobs', require('./routes/jobs')); // For job management
+app.use('/websites', require('./routes/processing')); // For file uploads
+app.use('/exports', require('./routes/exports')); // For job management
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
