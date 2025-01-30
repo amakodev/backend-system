@@ -1,5 +1,5 @@
 class AIService {
-  static API_KEY = process.env.OPEN_API_KEY;
+  static API_KEY = process.env.OPENAI_API_KEY;
 
   static prompts = {
     "intro": `Using the following text data from {business_name}'s website, read their copy. Check if they have any blogs, unique phrases, or unique strategies. The goal is for you to find something that would show that you've paid attention to their business in order to create a hyper-personalized opening to a cold email. Make the tone of the sentence friendly, conversational, spartan, and non-corporate. Make it a very brief compliment and only one sentence using an "I" statement, ending with an exclamation point, without using words above a high school reading level. Do not include any quotations or anything else besides the compliment whatsoever.
