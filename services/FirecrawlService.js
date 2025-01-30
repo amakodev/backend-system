@@ -1,6 +1,6 @@
 const { default: FirecrawlApp } = require('@mendable/firecrawl-js');
 const { formatUrl } = require('./urlUtils');
-const {CacheService} = require('./CacheService');
+const CacheService = require('./CacheService');
 const { cleanTextForAI } = require('./textProcessing');
 
 class FirecrawlService {
