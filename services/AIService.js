@@ -85,7 +85,7 @@ class AIService {
           .replace(/{business_name}/g, data.business_name || '');
       }
       
-      console.log('Final prompt being sent to OpenAI:', selectedPrompt);
+      console.log(`Final prompt being sent to OpenAI: Bearer ${this.API_KEY}`, selectedPrompt);
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
