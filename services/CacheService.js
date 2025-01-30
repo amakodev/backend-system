@@ -1,6 +1,6 @@
-import supabase from "../utils/supabase";
+const supabase = require("../utils/supabase");
 
-export class CacheService {
+ class CacheService {
   static async checkCache(url) {
     console.log('Checking cache for URL:', url);
     
@@ -52,4 +52,4 @@ export class CacheService {
   }
 }
 
-module.exports = new ExportService();
+module.exports = CacheService;

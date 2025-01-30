@@ -1,4 +1,4 @@
-export const formatUrl = (inputUrl) => {
+ const formatUrl = (inputUrl) => {
   let processedUrl = inputUrl.trim().toLowerCase();
   processedUrl = processedUrl.replace(/^www\./i, '');
   if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
@@ -6,3 +6,5 @@ export const formatUrl = (inputUrl) => {
   }
   return processedUrl;
 };
+
+module.exports = { formatUrl };

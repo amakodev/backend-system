@@ -57,7 +57,7 @@ const cleanSingleText = (rawText) => {
   return sentences.join('. ').trim();
 };
 
-export const cleanTextForAI = (rawData) => {
+const cleanTextForAI = (rawData) => {
   console.log('Starting text cleaning process');
   
   // Process each item in the array while maintaining the structure
@@ -84,3 +84,5 @@ export const cleanTextForAI = (rawData) => {
   
   return cleanedData;
 };
+
+module.exports = { cleanTextForAI };
