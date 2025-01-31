@@ -6,7 +6,7 @@ const RATE_LIMIT = 10;
 const RATE_LIMIT_WINDOW = 60000;
 
 const fetchWebsiteData = async (websites, limit) => {
-    if (!websites?.length) return;
+    if (!websites?.length) return [];
 
     let query = supabase
         .from('website_crawls')
@@ -18,13 +18,13 @@ const fetchWebsiteData = async (websites, limit) => {
 
     if (error) {
         console.error('Error fetching website data:', error);
-        return;
+        return [];
     }
-    return data;
+    return data || [];
 }
 
 const getCacheData = async (website_list) => {
-    if (!(website_list?.length > 0)) return;
+    if (!(website_list?.length > 0)) return [];
     const cachedResults = await Promise.all(
         website_list.map(async (url) => {
             const { data: cachedData } = await supabase
@@ -89,8 +89,8 @@ const updateExportPersonalizations = async (userId, url, personalizations) => {
         }
 
         const updatedPersonalizations = {
-            ...initData,
             ...existingRecord,
+            ...initData,
             personalizations: {
                 ...existingRecord?.personalizations,
                 ...personalizations
@@ -115,7 +115,7 @@ const updateExportPersonalizations = async (userId, url, personalizations) => {
     }
 };
 
-const processWebsites = async (websites, totalRows = 10, updateSummary, jobId) => {
+const processWebsites = async (websites, totalRows = 10, updateSummary, jobId = null) => {
     if (!websites.length) return;
 
     const queue = websites.slice(0, totalRows);
@@ -177,12 +177,15 @@ const processWebsites = async (websites, totalRows = 10, updateSummary, jobId) =
                 throw new Error(result.error);
             }
 
-            await supabase
-            .from('export_jobs')
-            .update({
-                processed_rows: results.length,
-            })
-            .eq('id', jobId);
+            // Update the export job with the number of processed rows if a jobId is provided
+            if (jobId) {
+                await supabase
+                .from('export_jobs')
+                .update({
+                    processed_rows: results.length,
+                })
+                .eq('id', jobId);
+            }
         } catch (error) {
             console.error(`Error processing website ${url}:`, error);
             
@@ -197,6 +200,14 @@ const processWebsites = async (websites, totalRows = 10, updateSummary, jobId) =
                     continue;
                 }
             }
+            
+            // Update error state in database
+            await updateSupabaseAndState(url, {
+                error: error.message,
+                isLoading: false,
+                last_error_at: new Date().toISOString()
+            });
+            
             console.log(`Failed to process ${url}`);
         }
     }
@@ -205,23 +216,29 @@ const processWebsites = async (websites, totalRows = 10, updateSummary, jobId) =
 };
 
 const handleGeneratePersonalization = async (userId, websiteData, type, prompt) => {
-    const processingPromises = websiteData.map(async (site, index) => {
-        if (!(site?.crawl_data) || !(site?.url)) return;
+    try {
+        const processingPromises = websiteData.map(async (site, index) => {
+            if (!(site?.crawl_data) || !(site?.url)) return;
+            
+            try {
+                const result = await AIService.analyzeWebsite(site.crawl_data, type, prompt);
+                await updateExportPersonalizations(userId, site.url, {
+                    [type]: result
+                });
+                console.log('Personalization Loaded', { userId, type, site, result });
+            } catch (error) {
+                console.error(`Error generating ${type} for ${site.url}:`, error);
+                await updateExportPersonalizations(userId, site.url, {
+                    [`${type}_error`]: error.message
+                });
+            }
+        });
 
-        try {
-            const result = await AIService.analyzeWebsite(site.crawl_data, type, prompt);
-
-            updateExportPersonalizations(userId, site.url, {
-                [type]: result
-            });
-
-            console.log('Personalization Loaded', { userId, type, site, result });
-        } catch (error) {
-            console.error(`Error generating ${type} for ${site.url}:`, error);
-        }
-    });
-
-    await Promise.all(processingPromises);
+        await Promise.all(processingPromises);
+    } catch (error) {
+        console.error('Fatal error in handleGeneratePersonalization:', error);
+        throw error;
+    }
 };
 
 const processPersonalizations = async (initData, websiteData) => {

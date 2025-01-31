@@ -7,7 +7,12 @@ const handleCrawlWebhook = require('./webhooks/crawlWebhook');
 const app = express();
 
 
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:8080', 'http://localhost:3000'], // Add all allowed origins
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+  }));
 app.use(bodyParser.json({ limit: '50mb' })); 
 
 // API Endpoints

@@ -62,7 +62,7 @@ class ExportService {
 
     async processExportAsync(initData, selectedData, export_website_urls, userId, selected_templates) {
         try {
-            const processedSites = await processWebsites(export_website_urls, export_website_urls.length, initData?.id);
+            const processedSites = await processWebsites(export_website_urls, export_website_urls.length, false,initData?.id);
             processedSites && await processPersonalizations(initData, processedSites);
 
             const rowData = await Promise.all(
