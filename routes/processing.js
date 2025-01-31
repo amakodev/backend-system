@@ -1,7 +1,7 @@
 // src/routes/websites.js
 const express = require('express');
 const router = express.Router();
-const { fetchWebsiteData, getCacheData, processWebsites } = require('../services/processWebsites');
+const { fetchWebsiteData, getCacheData, processWebsites, handleGeneratePersonalization } = require('../services/processWebsites');
 
 
 // GET /api/websites/data

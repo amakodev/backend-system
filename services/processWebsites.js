@@ -5,22 +5,35 @@ const { FirecrawlService } = require("./FirecrawlService");
 const RATE_LIMIT = 10;
 const RATE_LIMIT_WINDOW = 60000;
 
-const fetchWebsiteData = async (websites, limit) => {
-    if (!websites?.length) return [];
+const fetchWebsiteData = async (websites, limit = 10) => {
+    if (!websites?.length) return { data: [], remainingUrls: [] };
+
+    // Slice the input list to first 50 to optimize performance
+    const websitesToProcess = websites.slice(0, 50);
 
     let query = supabase
         .from('website_crawls')
         .select()
-        .in('url', websites.slice(0, limit))
+        .in('url', websitesToProcess)
         .order('created_at', { ascending: false });
 
     const { data, error } = await query;
 
     if (error) {
         console.error('Error fetching website data:', error);
-        return [];
+        return { data: [], remainingUrls: websitesToProcess };
     }
-    return data || [];
+
+    // Get existing URLs from the data
+    const existingUrls = new Set(data?.map(item => item.url) || []);
+    
+    // Find URLs that don't have data yet (only from the first 50)
+    const remainingUrls = websitesToProcess.filter(url => !existingUrls.has(url));
+
+    return {
+        data: data?.slice(0, limit) || [],
+        remainingUrls
+    };
 }
 
 const getCacheData = async (website_list) => {
@@ -121,7 +134,7 @@ const processWebsites = async (websites, totalRows = 10, updateSummary, jobId = 
     const queue = websites.slice(0, totalRows);
     let lastRequestTime = 0;
     const results = [];
-    
+
     for (const url of queue) {
         try {
             const { data: cachedData } = await supabase
@@ -180,34 +193,34 @@ const processWebsites = async (websites, totalRows = 10, updateSummary, jobId = 
             // Update the export job with the number of processed rows if a jobId is provided
             if (jobId) {
                 await supabase
-                .from('export_jobs')
-                .update({
-                    processed_rows: results.length,
-                })
-                .eq('id', jobId);
+                    .from('export_jobs')
+                    .update({
+                        processed_rows: results.length,
+                    })
+                    .eq('id', jobId);
             }
         } catch (error) {
             console.error(`Error processing website ${url}:`, error);
-            
+
             if (error.message?.includes('Rate limit exceeded')) {
                 const resetTimeMatch = error.message.match(/retry after (\d+)s/);
                 if (resetTimeMatch) {
                     const resetSeconds = parseInt(resetTimeMatch[1]) + 1;
                     console.log(`Rate limit hit. Pausing for ${resetSeconds} seconds`);
                     await new Promise(resolve => setTimeout(resolve, resetSeconds * 1000));
-                    
+
                     queue.push(url);
                     continue;
                 }
             }
-            
+
             // Update error state in database
             await updateSupabaseAndState(url, {
                 error: error.message,
                 isLoading: false,
                 last_error_at: new Date().toISOString()
             });
-            
+
             console.log(`Failed to process ${url}`);
         }
     }
@@ -219,7 +232,7 @@ const handleGeneratePersonalization = async (userId, websiteData, type, prompt) 
     try {
         const processingPromises = websiteData.map(async (site, index) => {
             if (!(site?.crawl_data) || !(site?.url)) return;
-            
+
             try {
                 const result = await AIService.analyzeWebsite(site.crawl_data, type, prompt);
                 await updateExportPersonalizations(userId, site.url, {
@@ -242,16 +255,16 @@ const handleGeneratePersonalization = async (userId, websiteData, type, prompt) 
 };
 
 const processPersonalizations = async (initData, websiteData) => {
-    console.log("Processing Personalizations", {websiteData});
+    console.log("Processing Personalizations", { websiteData });
     const { id, selected_templates, user_id } = initData || {};
-    
+
     if (!id || !selected_templates) {
         throw new Error("Invalid ExportJob parameters to process personalizations");
     }
 
     const validWebsites = websiteData.filter(site => site?.crawl_data && site?.url);
     let i = 0;
-    
+
 
     for (const site of validWebsites) {
         try {
@@ -259,7 +272,7 @@ const processPersonalizations = async (initData, websiteData) => {
                 const templateResults = [];
                 for (const type of selected_templates) {
                     await new Promise(resolve => setTimeout(resolve, 500));
-                    
+
                     const personalization = await AIService.analyzeWebsite(site.crawl_data, type);
                     templateResults.push({ type, personalization });
                 }
@@ -273,19 +286,19 @@ const processPersonalizations = async (initData, websiteData) => {
 
                 site.url && await updateExportPersonalizations(user_id, site.url, _exportTemplates);
 
-                console.log('Personalization Loaded', { 
-                    exportID: id, 
-                    selected_templates, 
-                    site, 
-                    result: _exportTemplates 
+                console.log('Personalization Loaded', {
+                    exportID: id,
+                    selected_templates,
+                    site,
+                    result: _exportTemplates
                 });
 
                 await supabase
-                .from('export_jobs')
-                .update({
-                    processed_rows: ++i,
-                })
-                .eq('id', id);
+                    .from('export_jobs')
+                    .update({
+                        processed_rows: ++i,
+                    })
+                    .eq('id', id);
             }
         } catch (error) {
             console.error(`Error generating personalizations for ${site.url}:`, error);
