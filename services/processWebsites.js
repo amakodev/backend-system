@@ -8,8 +8,7 @@ const RATE_LIMIT_WINDOW = 60000;
 const fetchWebsiteData = async (websites, limit = 10) => {
     if (!websites?.length) return { data: [], remainingUrls: [] };
 
-    // Slice the input list to first 50 to optimize performance
-    const websitesToProcess = websites.slice(0, 50);
+    const websitesToProcess = websites.slice(0, limit);
 
     let query = supabase
         .from('website_crawls')
