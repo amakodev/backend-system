@@ -1,9 +1,9 @@
 // src/routes/exports.js
 const express = require('express');
 const router = express.Router();
-const ExportService = require('../services/ExportService');
 const jobQueue = require('../queues/jobQueue');
-const { checkCreditsAvailable, handleCreditTransaction } = require('../services/creditService');
+const { checkCreditsAvailable } = require('../services/creditService');
+const supabase = require('../utils/supabase');
 
 // Middleware to validate export request
 const validateExportRequest = (req, res, next) => {
@@ -42,7 +42,7 @@ router.post('/create', validateExportRequest, async (req, res) => {
         } = req.body;
 
         // Get the total number of rows that will be processed
-        const { data: fileData, error: fileError } = await ExportService.supabase
+        const { data: fileData, error: fileError } = await supabase
             .from('file_uploads')
             .select('data')
             .eq('id', uploadedFileId)
@@ -87,7 +87,7 @@ router.post('/create', validateExportRequest, async (req, res) => {
 // GET /api/exports/:id/status
 router.get('/:id/status', async (req, res) => {
     try {
-        const { data: exportJob } = await ExportService.supabase
+        const { data: exportJob } = await supabase
             .from('export_jobs')
             .select('*')
             .eq('id', req.params.id)
