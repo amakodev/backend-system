@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const ExportService = require('../services/ExportService');
 const jobQueue = require('../queues/jobQueue');
+const { checkCreditsAvailable, handleCreditTransaction } = require('../services/creditService');
 
 // Middleware to validate export request
 const validateExportRequest = (req, res, next) => {
@@ -40,7 +41,29 @@ router.post('/create', validateExportRequest, async (req, res) => {
             maxRows = null 
         } = req.body;
 
-        //Create a job to process and export all data:
+        // Get the total number of rows that will be processed
+        const { data: fileData, error: fileError } = await ExportService.supabase
+            .from('file_uploads')
+            .select('data')
+            .eq('id', uploadedFileId)
+            .single();
+
+        if (fileError || !fileData?.data) {
+            throw new Error('No file data found');
+        }
+
+        const totalRowsToProcess = maxRows || (fileData.data.length - startRow);
+
+        // Check if user has enough credits
+        const hasEnoughCredits = await checkCreditsAvailable(userId, totalRowsToProcess);
+        
+        if (!hasEnoughCredits) {
+            return res.json({
+                message: `Insufficient credits. Required: ${totalRowsToProcess} credits`
+            });
+        }
+
+        // Create a job to process and export all data:
         const job = await jobQueue.add('processExport', { 
             userId, 
             uploadedFileId, 

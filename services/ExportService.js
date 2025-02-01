@@ -1,5 +1,6 @@
 const supabase = require("../utils/supabase");
 const { processWebsites, processPersonalizations } = require('./processWebsites');
+const { handleCreditTransaction } = require('./creditService');
 
 class ExportService {
     constructor() {}
@@ -62,7 +63,7 @@ class ExportService {
 
     async processExportAsync(initData, selectedData, export_website_urls, userId, selected_templates) {
         try {
-            const processedSites = await processWebsites(export_website_urls, export_website_urls.length, false,initData?.id);
+            const processedSites = await processWebsites(export_website_urls, export_website_urls.length, false, initData?.id);
             processedSites && await processPersonalizations(initData, processedSites);
 
             const rowData = await Promise.all(
@@ -111,6 +112,14 @@ class ExportService {
                 })
             );
 
+            // Deduct credits for successfully processed rows
+            await handleCreditTransaction({
+                user_id: userId,
+                type: 'debit',
+                amount: rowData.length,
+                reason: `Export job ${initData.id}: ${rowData.length} rows processed`
+            });
+
             // Update export job with results
             await supabase
                 .from('export_jobs')
@@ -118,7 +127,8 @@ class ExportService {
                     processed_rows: rowData.length,
                     row_data: rowData,
                     status: 'completed',
-                    estimated_completion_time: new Date().toISOString()
+                    estimated_completion_time: new Date().toISOString(),
+                    credits_used: rowData.length // Add this field to track credits used
                 })
                 .eq('id', initData.id);
 

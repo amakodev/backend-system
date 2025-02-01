@@ -8,7 +8,7 @@ const app = express();
 
 
 app.use(cors({
-    origin: ['http://localhost:8080'], // Add all allowed origins
+    origin: ['http://localhost:8080', 'https://heystranger.ai'], // Add all allowed origins
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   }));

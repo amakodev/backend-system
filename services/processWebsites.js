@@ -213,14 +213,12 @@ const processWebsites = async (websites, totalRows = 10, updateSummary, jobId = 
                 }
             }
 
-            // Update error state in database
-            await updateSupabaseAndState(url, {
-                error: error.message,
-                isLoading: false,
-                last_error_at: new Date().toISOString()
-            });
-
             console.log(`Failed to process ${url}`);
+            results.push({
+                url,
+                summary: `<HSW_ERROR>${error.message}`,
+                isLoading: false,
+            });
         }
     }
 
