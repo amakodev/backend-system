@@ -3,7 +3,7 @@ const { processWebsites, processPersonalizations } = require('./processWebsites'
 const { handleCreditTransaction } = require('./creditService');
 
 class ExportService {
-    constructor() {}
+    constructor() { }
 
     async processExport(userId, uploadedFileId, selected_templates, startRow = 0, maxRows = null) {
         try {
@@ -23,7 +23,7 @@ class ExportService {
                 ? originalData.slice(startRow, startRow + maxRows)
                 : originalData.slice(startRow);
 
-            const export_website_urls = selectedData.map(row => 
+            const export_website_urls = selectedData.map(row =>
                 row.Website || row.website || row.URL || row.url
             ).filter(Boolean);
 
@@ -69,7 +69,7 @@ class ExportService {
             const rowData = await Promise.all(
                 selectedData.map(async (row) => {
                     const webUrl = row.Website || row.website || row.URL || row.url;
-                    
+
                     const { data: websiteCrawl } = await supabase
                         .from('website_crawls')
                         .select('summary')
@@ -112,14 +112,6 @@ class ExportService {
                 })
             );
 
-            // Deduct credits for successfully processed rows
-            await handleCreditTransaction({
-                user_id: userId,
-                type: 'debit',
-                amount: rowData.length,
-                reason: `Export job ${initData.id}: ${rowData.length} rows processed`
-            });
-
             // Update export job with results
             await supabase
                 .from('export_jobs')
@@ -131,6 +123,14 @@ class ExportService {
                     credits_used: rowData.length // Add this field to track credits used
                 })
                 .eq('id', initData.id);
+
+            // Deduct credits for successfully processed rows
+            await handleCreditTransaction({
+                user_id: userId,
+                type: 'debit',
+                amount: rowData.length,
+                reason: `Export job ${initData.id}: ${rowData.length} rows processed`
+            });
 
         } catch (error) {
             console.error('Export processing error:', error);
