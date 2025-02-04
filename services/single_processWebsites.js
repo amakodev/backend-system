@@ -1,35 +1,9 @@
 const supabase = require("../utils/supabase");
 const AIService = require("./AIService");
 const { FirecrawlService } = require("./FirecrawlService");
-const redis = require("../utils/redis");
 
 const RATE_LIMIT = 10;
 const RATE_LIMIT_WINDOW = 60000;
-
-const RATE_LIMIT_TRACKER = {
-    requests: 0,
-    resetTime: Date.now(),
-    
-    async checkAndWait() {
-        const now = Date.now();
-        if (now - this.resetTime >= RATE_LIMIT_WINDOW) {
-            this.requests = 0;
-            this.resetTime = now;
-        }
-        
-        if (this.requests >= RATE_LIMIT) {
-            const waitTime = RATE_LIMIT_WINDOW - (now - this.resetTime);
-            if (waitTime > 0) {
-                console.log(`Rate limit reached, waiting ${waitTime}ms`);
-                await new Promise(resolve => setTimeout(resolve, waitTime));
-                this.requests = 0;
-                this.resetTime = Date.now();
-            }
-        }
-        
-        this.requests++;
-    }
-};
 
 const fetchWebsiteData = async (websites, limit = 10) => {
     if (!websites?.length) return { data: [], remainingUrls: [] };
@@ -153,63 +127,98 @@ const updateExportPersonalizations = async (userId, url, personalizations) => {
     }
 };
 
-const checkCache = async (url) => {
-    const cacheKey = `website_cache:${url}`;
-    // Add Redis or similar for faster cache lookups
-    const cachedData = await redis.get(cacheKey);
-    if (cachedData) {
-        return JSON.parse(cachedData);
-    }
-    return null;
-};
-
 const processWebsites = async (websites, totalRows = 10, updateSummary, jobId = null) => {
     if (!websites.length) return;
 
     const queue = websites.slice(0, totalRows);
+    let lastRequestTime = 0;
     const results = [];
-    const batchSize = RATE_LIMIT;
-    
-    for (let i = 0; i < queue.length; i += batchSize) {
-        const batch = queue.slice(i, i + batchSize);
-        const batchPromises = batch.map(async (url) => {
-            try {
-                await RATE_LIMIT_TRACKER.checkAndWait();
-                
-                // Check cache first
-                const cachedData = await checkCache(url);
-                if (cachedData) return cachedData;
-                
-                // Process new website
-                await RATE_LIMIT_TRACKER.checkAndWait();
-                const result = await FirecrawlService.crawlWebsite(url);
-                
-                if (result.success) {
-                    await RATE_LIMIT_TRACKER.checkAndWait();
-                    const summary = await AIService.analyzeWebsite(result.data.data, "summary");
-                    
-                    return updateSupabaseAndState(url, {
-                        crawl_data: result.data.data,
-                        summary,
-                        // ... other fields
-                    });
-                }
-            } catch (error) {
-                console.error(`Error processing ${url}:`, error);
-                return {
-                    url,
-                    error: error.message
-                };
-            }
-        });
 
-        // Process batch with smart rate limiting
-        const batchResults = await Promise.all(batchPromises);
-        results.push(...batchResults.filter(Boolean));
-        
-        // Update progress
-        if (jobId) {
-            await updateProgress(jobId, results.length);
+    for (const url of queue) {
+        try {
+            const { data: cachedData } = await supabase
+                .from('website_crawls')
+                .select('*')
+                .eq('url', url)
+                .single();
+
+            if (Array.isArray(cachedData?.crawl_data) && cachedData.crawl_data.length > 0) {
+                if (cachedData?.isLoading || !(cachedData?.summary) || updateSummary) {
+                    const summary = await AIService.analyzeWebsite(cachedData.crawl_data, "summary");
+                    const faviconUrl = `https://www.google.com/s2/favicons?domain=${url}&sz=128`;
+
+                    const updatedSite = await updateSupabaseAndState(url, {
+                        summary,
+                        favicon: faviconUrl,
+                        isLoading: false,
+                    });
+                    results.push(updatedSite);
+                    continue;
+                }
+                results.push(cachedData);
+                continue;
+            }
+
+            const now = Date.now();
+            const timeSinceLastRequest = now - lastRequestTime;
+            const minimumDelay = RATE_LIMIT_WINDOW / (RATE_LIMIT - 1);
+
+            if (timeSinceLastRequest < minimumDelay) {
+                const delayNeeded = minimumDelay - timeSinceLastRequest;
+                console.log(`Rate limiting: Waiting ${delayNeeded}ms before processing ${url}`);
+                await new Promise(resolve => setTimeout(resolve, delayNeeded));
+            }
+
+            lastRequestTime = Date.now();
+
+            const result = await FirecrawlService.crawlWebsite(url);
+
+            if (result.success) {
+                const summary = await AIService.analyzeWebsite(result.data.data, "summary");
+                const faviconUrl = `https://www.google.com/s2/favicons?domain=${url}&sz=128`;
+
+                const updatedSite = await updateSupabaseAndState(url, {
+                    crawl_data: result.data.data,
+                    word_count: JSON.stringify(result.data.data).split(/\s+/).length,
+                    summary,
+                    favicon: faviconUrl,
+                    isLoading: false,
+                });
+                results.push(updatedSite);
+            } else {
+                throw new Error(result.error);
+            }
+
+            // Update the export job with the number of processed rows if a jobId is provided
+            if (jobId) {
+                await supabase
+                    .from('export_jobs')
+                    .update({
+                        processed_rows: results.length,
+                    })
+                    .eq('id', jobId);
+            }
+        } catch (error) {
+            console.error(`Error processing website ${url}:`, error);
+
+            if (error.message?.includes('Rate limit exceeded')) {
+                const resetTimeMatch = error.message.match(/retry after (\d+)s/);
+                if (resetTimeMatch) {
+                    const resetSeconds = parseInt(resetTimeMatch[1]) + 1;
+                    console.log(`Rate limit hit. Pausing for ${resetSeconds} seconds`);
+                    await new Promise(resolve => setTimeout(resolve, resetSeconds * 1000));
+
+                    queue.push(url);
+                    continue;
+                }
+            }
+
+            console.log(`Failed to process ${url}`);
+            results.push({
+                url,
+                summary: `<HSW_ERROR>${error.message}`,
+                isLoading: false,
+            });
         }
     }
 
@@ -251,64 +260,45 @@ const processPersonalizations = async (initData, websiteData) => {
     }
 
     const validWebsites = websiteData.filter(site => site?.crawl_data && site?.url);
-    const batchSize = RATE_LIMIT;
-    let processedCount = 0;
+    let i = 0;
 
-    // Process websites in batches
-    for (let i = 0; i < validWebsites.length; i += batchSize) {
-        const batch = validWebsites.slice(i, i + batchSize);
-        
-        // Process all templates for each website in the batch concurrently
-        const batchPromises = batch.map(async (site) => {
-            try {
-                if (selected_templates?.length > 0) {
-                    const templatePromises = selected_templates.map(async (type) => {
-                        const personalization = await AIService.analyzeWebsite(site.crawl_data, type);
-                        return { type, personalization };
-                    });
 
-                    // Process all templates for this website concurrently
-                    const templateResults = await Promise.all(templatePromises);
+    for (const site of validWebsites) {
+        try {
+            if (selected_templates?.length > 0) {
+                const templateResults = [];
+                for (const type of selected_templates) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
 
-                    const _exportTemplates = templateResults.reduce((acc, { type, personalization }) => ({
-                        ...acc,
-                        [type]: personalization
-                    }), {});
-
-                    console.log('Personalization Processing', { site, selected_templates, _exportTemplates });
-
-                    if (site.url) {
-                        await updateExportPersonalizations(user_id, site.url, _exportTemplates);
-                    }
-
-                    console.log('Personalization Loaded', {
-                        exportID: id,
-                        selected_templates,
-                        site,
-                        result: _exportTemplates
-                    });
+                    const personalization = await AIService.analyzeWebsite(site.crawl_data, type);
+                    templateResults.push({ type, personalization });
                 }
-            } catch (error) {
-                console.error(`Error generating personalizations for ${site.url}:`, error);
+
+                const _exportTemplates = templateResults.reduce((acc, { type, personalization }) => ({
+                    ...acc,
+                    [type]: personalization
+                }), {});
+
+                console.log('Personalization Processing', { site, selected_templates, _exportTemplates });
+
+                site.url && await updateExportPersonalizations(user_id, site.url, _exportTemplates);
+
+                console.log('Personalization Loaded', {
+                    exportID: id,
+                    selected_templates,
+                    site,
+                    result: _exportTemplates
+                });
+
+                await supabase
+                    .from('export_jobs')
+                    .update({
+                        processed_rows: ++i,
+                    })
+                    .eq('id', id);
             }
-        });
-
-        // Process the entire batch
-        await Promise.all(batchPromises);
-        processedCount += batch.length;
-
-        // Update progress
-        await supabase
-            .from('export_jobs')
-            .update({
-                processed_rows: processedCount,
-            })
-            .eq('id', id);
-
-        // Wait for rate limit window before processing next batch
-        if (i + batchSize < validWebsites.length) {
-            console.log(`Waiting ${RATE_LIMIT_WINDOW}ms before processing next batch of personalizations`);
-            await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_WINDOW));
+        } catch (error) {
+            console.error(`Error generating personalizations for ${site.url}:`, error);
         }
     }
 };
