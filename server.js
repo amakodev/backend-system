@@ -17,6 +17,8 @@ app.use(bodyParser.json({ limit: '50mb' }));
 // API Endpoints
 app.get('/', (req, res) => res.send('API is running'));
 
+app.use('/stripe', require('./routes/supscriptions')); // For Stripe integration
+
 //Crawl Webhook
 app.post('/update/crawl_status', handleCrawlWebhook);
 
